@@ -1,0 +1,21 @@
+[package]
+name = "hypernovae"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+bitflags = "2.13.0"
+cookie-factory = "0.3.3"
+either = "1.16.0"
+env_logger = "0.11.10"
+hex = "0.4.3"
+log = "0.4.32"
+nom = "8.0.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["full"] }
+toml = "1.1.2"
