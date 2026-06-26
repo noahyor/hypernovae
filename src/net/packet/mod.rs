@@ -11,6 +11,7 @@ use crate::net::{
     data::{generate_string, generate_varint, parse_bool, parse_string, parse_varint},
     proto::ProtocolState,
 };
+use cookie_factory::GenResult;
 use cookie_factory::{SerializeFn, gen_simple};
 use nom::AsBytes;
 use nom::IResult;
@@ -107,6 +108,17 @@ impl MCStream {
         Ok(())
     }
 
+    pub async fn send_plugin<E, G>(
+        &mut self,
+        channel: Identifier,
+        data: Vec<u8>,
+    ) -> Result<(), Error<E>> {
+        self.send(&ClientboundPacket::ConfigPluginMessage(
+            PluginMessagePacket { channel, data },
+        ))
+        .await
+    }
+
     pub fn set_compression(&mut self, threshold: u32) {
         self.compression = Some(threshold);
     }
@@ -174,6 +186,7 @@ pub enum ClientboundPacket {
     StatusPong(u64),
     ConfigPing(u32),
     KnownPacks(Vec<DatapackVersion>),
+    ConfigPluginMessage(PluginMessagePacket),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -350,28 +363,32 @@ impl ClientboundPacket {
     pub(crate) fn generate<W: Write>(&self) -> impl SerializeFn<W> {
         move |w| match self {
             Self::SetCompression(n) => {
-                let w = gen_simple(generate_varint(3), w)?;
+                let w = generate_varint(3)(w)?;
                 gen_simple(cookie_factory::bytes::be_u32(n.clone()), w)
             }
             Self::LoginSuccess(packet) => {
-                let w = gen_simple(generate_varint(2), w)?;
+                let w = generate_varint(2)(w)?;
                 packet.generate()(w)
             }
             Self::StatusResponse(packet) => {
-                let w = gen_simple(generate_varint(0), w)?;
+                let w = generate_varint(0)(w)?;
                 packet.generate()(w)
             }
             Self::StatusPong(n) => {
-                let w = gen_simple(generate_varint(1), w)?;
+                let w = generate_varint(1)(w)?;
                 gen_simple(cookie_factory::bytes::be_u64(n.clone()), w)
             }
             Self::ConfigPing(n) => {
-                let w = gen_simple(generate_varint(5), w)?;
+                let w = generate_varint(5)(w)?;
                 gen_simple(cookie_factory::bytes::be_u32(n.clone()), w)
             }
             Self::KnownPacks(packs) => {
                 let w = generate_varint(14)(w)?;
                 generate_array(packs, DatapackVersion::generate)(w)
+            }
+            Self::ConfigPluginMessage(packet) => {
+                let w = generate_varint(1)(w)?;
+                packet.generate()(w)
             }
         }
     }
@@ -463,6 +480,14 @@ impl PluginMessagePacket {
                 data: payload.to_owned(),
             },
         ))
+    }
+
+    fn generate<W: Write>(&self) -> impl SerializeFn<W> {
+        |w| {
+            let mut w = gen_simple(generate_string(&*self.channel.to_string()), w)?;
+            w.write_all(&self.data)?;
+            Ok(w)
+        }
     }
 }
 

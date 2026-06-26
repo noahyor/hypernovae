@@ -209,6 +209,12 @@ impl Identifier {
     }
 }
 
+impl ToString for Identifier {
+    fn to_string(&self) -> String {
+        format!("{}:{}", self.namespace, self.value)
+    }
+}
+
 impl DatapackVersion {
     pub fn new<V: Into<String>>(id: Identifier, ver: V) -> Self {
         Self {

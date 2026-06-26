@@ -8,9 +8,13 @@ use crate::{
         ProtocolError,
     },
     game::{DatapackVersion, Identifier, Player, PlayerBuilder, Profile},
-    net::packet::{
-        ClientInformationPacket, ClientboundPacket, HandshakeIntent, LoginSuccessPacket, MCStream,
-        PluginMessagePacket, ServerboundPacket, ServerboundPacketType, StatusResponsePacket,
+    net::{
+        data::generate_string,
+        packet::{
+            ClientInformationPacket, ClientboundPacket, HandshakeIntent, LoginSuccessPacket,
+            MCStream, PluginMessagePacket, ServerboundPacket, ServerboundPacketType,
+            StatusResponsePacket,
+        },
     },
 };
 
@@ -136,13 +140,19 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn configure<F>(
+    pub async fn configure<B, C, P, M>(
         &mut self,
         datapacks: Vec<DatapackVersion>,
-        mut event_handler: F,
+        mut brand_handler: B,
+        mut client_info_handler: C,
+        mut plugin_message_handler: P,
+        mut missing_packs_handler: M,
     ) -> Result<(), Error<Vec<u8>>>
     where
-        F: FnMut(ConfigurationEvent),
+        B: FnMut(String) -> String,
+        C: FnMut(&ClientInformationPacket),
+        P: FnMut(&mut Self, &PluginMessagePacket),
+        M: FnMut(&mut Self, Vec<DatapackVersion>),
     {
         if self.io.state() != ProtocolState::Configuration {
             return Err(Error::Protocol(ProtocolError::InvalidState(
@@ -165,16 +175,22 @@ impl Connection {
                 }
                 let packet = packet.unwrap();
                 match &packet {
-                    ServerboundPacket::ClientInformation(packet) => {
-                        event_handler(ConfigurationEvent::ClientInformation(packet.clone()))
-                    }
+                    ServerboundPacket::ClientInformation(packet) => client_info_handler(packet),
                     ServerboundPacket::PluginMessage(packet) => {
                         if packet.channel == Identifier::new("minecraft", "brand") {
-                            event_handler(ConfigurationEvent::Brand(
-                                String::from_utf8_lossy(&packet.data[1..]).into_owned(),
-                            ))
+                            self.io
+                                .send_plugin::<Vec<u8>, Vec<u8>>(
+                                    Identifier::new("minecraft", "brand"),
+                                    cookie_factory::gen_simple(
+                                        generate_string(&*brand_handler(
+                                            String::from_utf8_lossy(&packet.data[1..]).into_owned(),
+                                        )),
+                                        Vec::new(),
+                                    )?,
+                                )
+                                .await?;
                         }
-                        event_handler(ConfigurationEvent::PluginMessage(packet.clone()))
+                        plugin_message_handler(self, packet)
                     }
                     ServerboundPacket::KnownPacks(returned_packs) => {
                         let hashset: HashSet<DatapackVersion> =
@@ -186,7 +202,7 @@ impl Connection {
                             }
                         });
                         if vec.len() != 0 {
-                            event_handler(ConfigurationEvent::MissingPacks(vec))
+                            missing_packs_handler(self, vec)
                         }
                     }
                     _ => unreachable!(),

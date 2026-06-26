@@ -52,7 +52,10 @@ async fn main() -> Result<(), Error<Vec<u8>>> {
                                 Identifier::new("minecraft", "core"),
                                 "1.21.11",
                             )],
+                            |_| String::from("hypernovae"),
                             |_| (),
+                            |_, _| (),
+                            |_, _| (),
                         )
                         .await?;
                 }

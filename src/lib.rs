@@ -8,6 +8,8 @@
 /// Things related to the game
 pub mod game;
 
+pub mod data;
+
 /// Contains utilities for reading config files
 pub mod config;
 
