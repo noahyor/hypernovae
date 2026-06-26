@@ -102,6 +102,11 @@ impl Connection {
                 }
                 ServerboundPacket::ConfigPong(_) => (),
                 ServerboundPacket::KnownPacks(_) => (),
+                ServerboundPacket::FinishConfig => {
+                    return Err(Error::Protocol(ProtocolError::OnlyReply(
+                        ServerboundPacketType::FinishConfig,
+                    )));
+                }
             }
         }
     }
@@ -147,50 +152,60 @@ impl Connection {
         mut client_info_handler: C,
         mut plugin_message_handler: P,
         mut missing_packs_handler: M,
-    ) -> Result<(), Error<Vec<u8>>>
+    ) -> Result<(), Either<Error<Vec<u8>>, ()>>
     where
-        B: FnMut(String) -> String,
-        C: FnMut(&ClientInformationPacket),
-        P: FnMut(&mut Self, &PluginMessagePacket),
-        M: FnMut(&mut Self, Vec<DatapackVersion>),
+        B: FnMut(String) -> Result<String, ()>,
+        C: FnMut(&ClientInformationPacket) -> Result<(), ()>,
+        P: FnMut(&mut Self, &PluginMessagePacket) -> Result<(), ()>,
+        M: FnMut(&mut Self, Vec<DatapackVersion>) -> Result<(), ()>,
     {
         if self.io.state() != ProtocolState::Configuration {
-            return Err(Error::Protocol(ProtocolError::InvalidState(
+            return Err(Left(Error::Protocol(ProtocolError::InvalidState(
                 self.io.state(),
                 ProtocolState::Configuration,
-            )));
+            ))));
         }
         println!("configurating");
         self.io
             .send(&ClientboundPacket::KnownPacks(datapacks.clone()))
-            .await?;
+            .await
+            .map_err(Either::Left)?;
         loop {
             let result = self.io.next_timeout(Duration::from_millis(200)).await;
             if let Err(Error::Timeout) = result {
                 break;
             } else {
-                let packet = result?;
+                let packet = result.map_err(Either::Left)?;
                 if let None = packet {
-                    return Err(Error::Protocol(ProtocolError::Disconnected));
+                    return Err(Left(Error::Protocol(ProtocolError::Disconnected)));
                 }
                 let packet = packet.unwrap();
                 match &packet {
-                    ServerboundPacket::ClientInformation(packet) => client_info_handler(packet),
+                    ServerboundPacket::ClientInformation(packet) => {
+                        client_info_handler(packet).map_err(Either::Right)?
+                    }
                     ServerboundPacket::PluginMessage(packet) => {
                         if packet.channel == Identifier::new("minecraft", "brand") {
                             self.io
                                 .send_plugin::<Vec<u8>, Vec<u8>>(
                                     Identifier::new("minecraft", "brand"),
                                     cookie_factory::gen_simple(
-                                        generate_string(&*brand_handler(
-                                            String::from_utf8_lossy(&packet.data[1..]).into_owned(),
-                                        )),
+                                        generate_string(
+                                            &*brand_handler(
+                                                String::from_utf8_lossy(&packet.data[1..])
+                                                    .into_owned(),
+                                            )
+                                            .map_err(Either::Right)?,
+                                        ),
                                         Vec::new(),
-                                    )?,
+                                    )
+                                    .map_err(Into::into)
+                                    .map_err(Either::Left)?,
                                 )
-                                .await?;
+                                .await
+                                .map_err(Either::Left)?;
                         }
-                        plugin_message_handler(self, packet)
+                        plugin_message_handler(self, packet).map_err(Either::Right)?
                     }
                     ServerboundPacket::KnownPacks(returned_packs) => {
                         let hashset: HashSet<DatapackVersion> =
@@ -202,13 +217,21 @@ impl Connection {
                             }
                         });
                         if vec.len() != 0 {
-                            missing_packs_handler(self, vec)
+                            missing_packs_handler(self, vec).map_err(Either::Right)?
                         }
+                        break;
                     }
                     _ => unreachable!(),
                 }
             }
         }
+        self.io
+            .send(&ClientboundPacket::FinishConfig)
+            .await
+            .map_err(Either::Left)?;
+        self.ensure_response_immediate(ServerboundPacketType::FinishConfig)
+            .await
+            .map_err(Either::Left)?;
         Ok(())
     }
 

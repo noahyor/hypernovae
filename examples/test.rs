@@ -1,3 +1,4 @@
+use either::Either;
 use tokio::net::TcpListener;
 
 use hypernovae::{
@@ -52,12 +53,13 @@ async fn main() -> Result<(), Error<Vec<u8>>> {
                                 Identifier::new("minecraft", "core"),
                                 "1.21.11",
                             )],
-                            |_| String::from("hypernovae"),
-                            |_| (),
-                            |_, _| (),
-                            |_, _| (),
+                            |_| Ok(String::from("hypernovae")),
+                            |_| Ok(()),
+                            |_, _| Ok(()),
+                            |_, _| Ok(()),
                         )
-                        .await?;
+                        .await
+                        .map_err(|either| either.unwrap_left())?;
                 }
             }
         }

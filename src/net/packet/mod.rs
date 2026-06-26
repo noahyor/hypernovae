@@ -176,6 +176,7 @@ pub enum ServerboundPacket {
     PluginMessage(PluginMessagePacket),
     ClientInformation(ClientInformationPacket),
     KnownPacks(Vec<DatapackVersion>),
+    FinishConfig,
 }
 
 #[derive(Debug)]
@@ -187,6 +188,7 @@ pub enum ClientboundPacket {
     ConfigPing(u32),
     KnownPacks(Vec<DatapackVersion>),
     ConfigPluginMessage(PluginMessagePacket),
+    FinishConfig,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -200,6 +202,7 @@ pub enum ServerboundPacketType {
     ClientInformation,
     ConfigPong,
     KnownPacks,
+    FinishConfig,
 }
 
 #[derive(Debug)]
@@ -279,6 +282,7 @@ impl ServerboundPacket {
             Self::ClientInformation(_) => ClientInformation,
             Self::ConfigPong(_) => ConfigPong,
             Self::KnownPacks(_) => KnownPacks,
+            Self::FinishConfig => FinishConfig,
         }
     }
 
@@ -345,6 +349,7 @@ impl ServerboundPacket {
                 let (data, packet) = PluginMessagePacket::parse(data)?;
                 (data, Self::PluginMessage(packet))
             }
+            0x03 => (data, Self::FinishConfig),
             0x07 => {
                 let (data, datapacks) = parse_array(DatapackVersion::parse)(data)?;
                 (data, Self::KnownPacks(datapacks))
@@ -390,6 +395,7 @@ impl ClientboundPacket {
                 let w = generate_varint(1)(w)?;
                 packet.generate()(w)
             }
+            Self::FinishConfig => generate_varint(3)(w),
         }
     }
 }
