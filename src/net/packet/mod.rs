@@ -1,17 +1,15 @@
+use crate::data::Identifier;
+use crate::data::datapack::DatapackVersion;
 use crate::error::Error;
 use crate::error::asciify;
 use crate::error::error_to_owned;
 use crate::error::map_nom_err;
-use crate::game::DatapackVersion;
-use crate::game::{ChatOptions, Hand, Identifier, ParticleOptions, Profile, SkinOptions};
+use crate::game::{ChatOptions, Hand, ParticleOptions, Profile, SkinOptions};
 use crate::net::data::generate_array;
 use crate::net::data::length_prefixed;
 use crate::net::data::parse_array;
-use crate::net::{
-    data::{generate_string, generate_varint, parse_bool, parse_string, parse_varint},
-    proto::ProtocolState,
-};
-use cookie_factory::GenResult;
+use crate::net::data::{generate_string, generate_varint, parse_bool, parse_string, parse_varint};
+use crate::net::proto::ProtocolState;
 use cookie_factory::{SerializeFn, gen_simple};
 use nom::AsBytes;
 use nom::IResult;
@@ -19,11 +17,8 @@ use std::convert::identity;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::net::TcpListener;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
 
 pub struct MCStream {
     io: TcpStream,

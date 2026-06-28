@@ -1,9 +1,9 @@
-use either::Either;
 use tokio::net::TcpListener;
 
 use hypernovae::{
+    data::{Identifier, datapack::DatapackVersion},
     error::Error,
-    game::{DatapackVersion, Identifier, Profile},
+    game::Profile,
     net::{
         packet::MCListener,
         proto::{Connection, ProtocolEvent},

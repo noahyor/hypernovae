@@ -11,6 +11,8 @@ pub enum Error<I> {
     #[error("error while generating: {0:?}")]
     CookieFactory(#[from] cookie_factory::GenError),
     #[error("{0}")]
+    Json(#[from] serde_json::Error),
+    #[error("{0}")]
     Protocol(ProtocolError),
     #[error("error while parsing a string \"{0:?}\"")]
     String(I),
@@ -67,6 +69,7 @@ pub(crate) fn error_to_owned(error: Error<&[u8]>) -> Error<Vec<u8>> {
         Error::ParticleOptions(e) => Error::ParticleOptions(e),
         Error::Protocol(e) => Error::Protocol(e),
         Error::Timeout => Error::Timeout,
+        Error::Json(e) => Error::Json(e),
     }
 }
 

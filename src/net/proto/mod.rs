@@ -3,11 +3,12 @@ use std::{collections::HashSet, convert::identity, time::Duration};
 use either::Either::{self, Left};
 
 use crate::{
+    data::{Identifier, datapack::DatapackVersion},
     error::{
         Error::{self, Protocol},
         ProtocolError,
     },
-    game::{DatapackVersion, Identifier, Player, PlayerBuilder, Profile},
+    game::{Player, PlayerBuilder, Profile},
     net::{
         data::generate_string,
         packet::{
