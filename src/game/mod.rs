@@ -7,6 +7,8 @@ use cookie_factory::{SerializeFn, combinator::string, gen_simple, multi::many_re
 use nom::{IResult, bytes::streaming::take_until1};
 use std::{io::Write, num::NonZero};
 
+pub mod data;
+
 #[derive(Debug)]
 pub struct PlayerBuilder {
     profile: Option<Profile>,

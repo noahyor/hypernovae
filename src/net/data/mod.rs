@@ -118,6 +118,10 @@ pub fn length_prefixed<W: Write, F: SerializeFn<Vec<u8>>>(f: F) -> impl Serializ
     }
 }
 
+pub fn generate_boolean<W: Write>(value: bool) -> impl SerializeFn<W> {
+    move |w| cookie_factory::bytes::be_u8(if value { 1 } else { 0 })(w)
+}
+
 pub fn generate_string<W: Write>(string: &str) -> impl SerializeFn<W> {
     move |w| {
         let mut w = generate_varint(string.len() as i32)(w)?;
@@ -126,6 +130,13 @@ pub fn generate_string<W: Write>(string: &str) -> impl SerializeFn<W> {
     }
 }
 
+pub fn generate_owned_string<W: Write>(string: String) -> impl SerializeFn<W> {
+    move |w| {
+        let mut w = generate_varint(string.len() as i32)(w)?;
+        w.write_all(string.as_bytes())?;
+        Ok(w)
+    }
+}
 pub fn generate_optional<W: Write, T, F: Fn(&T) -> S, S: SerializeFn<W>>(
     value: &Option<T>,
     f: F,

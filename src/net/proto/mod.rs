@@ -8,7 +8,7 @@ use crate::{
         Error::{self, Protocol},
         ProtocolError,
     },
-    game::{Player, PlayerBuilder, Profile},
+    game::{Player, PlayerBuilder, Profile, data::BlockPosition},
     net::{
         data::generate_string,
         packet::{
@@ -90,19 +90,19 @@ impl Connection {
                     self.io.send(&ClientboundPacket::StatusPong(n)).await?;
                     return Ok(ProtocolEvent::ConnectionClosed);
                 }
-                ServerboundPacket::LoginStart(_) => (),
+                ServerboundPacket::LoginStart(_) => todo!(),
                 ServerboundPacket::LoginAcknowledged => {
                     return Err(Error::Protocol(ProtocolError::OnlyReply(
                         ServerboundPacketType::LoginAcknowledged,
                     )));
                 }
-                ServerboundPacket::PluginMessage(_) => (),
-                ServerboundPacket::ClientInformation(_) => (),
+                ServerboundPacket::PluginMessage(_) => todo!(),
+                ServerboundPacket::ClientInformation(_) => todo!(),
                 ServerboundPacket::StatusRequest => {
                     return Ok(ProtocolEvent::StatusRequest);
                 }
-                ServerboundPacket::ConfigPong(_) => (),
-                ServerboundPacket::KnownPacks(_) => (),
+                ServerboundPacket::ConfigPong(_) => todo!(),
+                ServerboundPacket::KnownPacks(_) => todo!(),
                 ServerboundPacket::FinishConfig => {
                     return Err(Error::Protocol(ProtocolError::OnlyReply(
                         ServerboundPacketType::FinishConfig,
@@ -236,6 +236,54 @@ impl Connection {
         Ok(())
     }
 
+    pub async fn finalize_login(
+        &mut self,
+        entity_id: i32,
+        hardcore: bool,
+        dimensions: Vec<Identifier>,
+        max_players: i32,
+        simulation_distance: i32,
+        reduced_debug_info: bool,
+        respawn_screen_enabled: bool,
+        limited_crafting: bool,
+        dimension_type: i32,
+        dimension_name: Identifier,
+        hashed_seed: i64,
+        game_mode: u8,
+        previous_game_mode: i8,
+        is_debug_world: bool,
+        is_flat_world: bool,
+        death_location: Option<(Identifier, BlockPosition)>,
+        portal_cooldown: i32,
+        sea_level: i32,
+        enforces_secure_chat: bool,
+    ) -> Result<(), Error<Vec<u8>>> {
+        self.io
+            .send(&ClientboundPacket::FinalizeLogin(FinalizeLoginPacket {
+                entity_id,
+                hardcore,
+                dimensions,
+                max_players,
+                simulation_distance,
+                reduced_debug_info,
+                respawn_screen_enabled,
+                limited_crafting,
+                dimension_type,
+                dimension_name,
+                hashed_seed,
+                game_mode,
+                previous_game_mode,
+                is_debug_world,
+                is_flat_world,
+                death_location,
+                portal_cooldown,
+                sea_level,
+                enforces_secure_chat,
+            }))
+            .await?;
+        Ok(())
+    }
+
     pub async fn ping(&mut self, value: u32) -> Result<(), Error<Vec<u8>>> {
         if !((self.io.state() == ProtocolState::Configuration)
             | (self.io.state() == ProtocolState::Play))
@@ -280,8 +328,6 @@ impl Connection {
             .await
     }
 
-    // fn process(&mut self, packet: ServerboundPacket) -> Result<Option<()
-
     async fn ensure_response_immediate(
         &mut self,
         packet_type: ServerboundPacketType,
@@ -299,29 +345,6 @@ impl Connection {
         } else {
             Ok(packet)
         }
-    }
-
-    async fn ensure_response_buffered(
-        &mut self,
-        packet_type: ServerboundPacketType,
-        timeout: usize,
-    ) -> Result<Vec<ServerboundPacket>, Error<Vec<u8>>> {
-        let mut vec = Vec::new();
-        for _ in 0..timeout {
-            let packet = self.io.next().await?;
-            if let None = packet {
-                return Err(Error::Protocol(ProtocolError::Disconnected));
-            }
-            let packet = packet.unwrap();
-            if packet.packet_type() != packet_type {
-                vec.push(packet);
-                continue;
-            } else {
-                vec.push(packet);
-                return Ok(vec);
-            }
-        }
-        Err(Protocol(ProtocolError::Timeout))
     }
 }
 

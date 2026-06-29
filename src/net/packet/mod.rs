@@ -4,8 +4,11 @@ use crate::error::Error;
 use crate::error::asciify;
 use crate::error::error_to_owned;
 use crate::error::map_nom_err;
+use crate::game::data::BlockPosition;
 use crate::game::{ChatOptions, Hand, ParticleOptions, Profile, SkinOptions};
 use crate::net::data::generate_array;
+use crate::net::data::generate_boolean;
+use crate::net::data::generate_owned_string;
 use crate::net::data::length_prefixed;
 use crate::net::data::parse_array;
 use crate::net::data::{generate_string, generate_varint, parse_bool, parse_string, parse_varint};
@@ -16,6 +19,7 @@ use nom::IResult;
 use std::convert::identity;
 use std::io::Write;
 use std::net::SocketAddr;
+use std::ops::Deref;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -184,6 +188,7 @@ pub enum ClientboundPacket {
     KnownPacks(Vec<DatapackVersion>),
     ConfigPluginMessage(PluginMessagePacket),
     FinishConfig,
+    FinalizeLogin(FinalizeLoginPacket),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -246,6 +251,29 @@ pub struct ClientInformationPacket {
 #[derive(Debug)]
 pub struct StatusResponsePacket {
     response: serde_json::Value,
+}
+
+#[derive(Debug)]
+pub struct FinalizeLoginPacket {
+    pub(crate) entity_id: i32,
+    pub(crate) hardcore: bool,
+    pub(crate) dimensions: Vec<Identifier>,
+    pub(crate) max_players: i32,
+    pub(crate) simulation_distance: i32,
+    pub(crate) reduced_debug_info: bool,
+    pub(crate) respawn_screen_enabled: bool,
+    pub(crate) limited_crafting: bool,
+    pub(crate) dimension_type: i32,
+    pub(crate) dimension_name: Identifier,
+    pub(crate) hashed_seed: i64,
+    pub(crate) game_mode: u8,
+    pub(crate) previous_game_mode: i8,
+    pub(crate) is_debug_world: bool,
+    pub(crate) is_flat_world: bool,
+    pub(crate) death_location: Option<(Identifier, BlockPosition)>,
+    pub(crate) portal_cooldown: i32,
+    pub(crate) sea_level: i32,
+    pub(crate) enforces_secure_chat: bool,
 }
 
 impl ServerboundPacket {
@@ -391,6 +419,15 @@ impl ClientboundPacket {
                 packet.generate()(w)
             }
             Self::FinishConfig => generate_varint(3)(w),
+            Self::FinalizeLogin(packet) => {
+                let w = generate_varint(48)(w)?;
+                let w = cookie_factory::bytes::be_i32(packet.entity_id)(w)?;
+                let w = generate_boolean(packet.hardcore)(w)?;
+                let w = generate_array(&*packet.dimensions, |v| {
+                    generate_owned_string(v.to_string())
+                })(w)?;
+                Ok(w)
+            }
         }
     }
 }
