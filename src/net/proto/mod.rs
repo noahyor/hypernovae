@@ -12,9 +12,9 @@ use crate::{
     net::{
         data::generate_string,
         packet::{
-            ClientInformationPacket, ClientboundPacket, HandshakeIntent, LoginSuccessPacket,
-            MCStream, PluginMessagePacket, ServerboundPacket, ServerboundPacketType,
-            StatusResponsePacket,
+            ClientInformationPacket, ClientboundPacket, FinalizeLoginPacket, HandshakeIntent,
+            LoginSuccessPacket, MCStream, PluginMessagePacket, ServerboundPacket,
+            ServerboundPacketType, StatusResponsePacket,
         },
     },
 };
@@ -242,6 +242,7 @@ impl Connection {
         hardcore: bool,
         dimensions: Vec<Identifier>,
         max_players: i32,
+        render_distance: i32,
         simulation_distance: i32,
         reduced_debug_info: bool,
         respawn_screen_enabled: bool,
@@ -264,6 +265,7 @@ impl Connection {
                 hardcore,
                 dimensions,
                 max_players,
+                render_distance,
                 simulation_distance,
                 reduced_debug_info,
                 respawn_screen_enabled,

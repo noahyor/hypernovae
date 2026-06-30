@@ -60,6 +60,30 @@ async fn main() -> Result<(), Error<Vec<u8>>> {
                         )
                         .await
                         .map_err(|either| either.unwrap_left())?;
+                    connection
+                        .finalize_login(
+                            0,
+                            false,
+                            vec![Identifier::new("minecraft", "overworld")],
+                            1,
+                            12,
+                            12,
+                            false,
+                            true,
+                            false,
+                            0,
+                            Identifier::new("minecraft", "overworld"),
+                            12345,
+                            0,
+                            -1,
+                            false,
+                            false,
+                            None,
+                            20,
+                            80,
+                            false,
+                        )
+                        .await?;
                 }
             }
         }

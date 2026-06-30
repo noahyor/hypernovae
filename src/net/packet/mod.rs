@@ -1,28 +1,22 @@
-use crate::data::Identifier;
-use crate::data::datapack::DatapackVersion;
-use crate::error::Error;
-use crate::error::asciify;
-use crate::error::error_to_owned;
-use crate::error::map_nom_err;
-use crate::game::data::BlockPosition;
-use crate::game::{ChatOptions, Hand, ParticleOptions, Profile, SkinOptions};
-use crate::net::data::generate_array;
-use crate::net::data::generate_boolean;
-use crate::net::data::generate_owned_string;
-use crate::net::data::length_prefixed;
-use crate::net::data::parse_array;
-use crate::net::data::{generate_string, generate_varint, parse_bool, parse_string, parse_varint};
-use crate::net::proto::ProtocolState;
+use crate::{
+    data::{Identifier, datapack::DatapackVersion},
+    error::{Error, asciify, error_to_owned, map_nom_err},
+    game::{ChatOptions, Hand, ParticleOptions, Profile, SkinOptions, data::BlockPosition},
+    net::{
+        data::{
+            generate_array, generate_boolean, generate_owned_string, generate_string,
+            generate_varint, length_prefixed, parse_array, parse_bool, parse_string, parse_varint,
+        },
+        proto::ProtocolState,
+    },
+};
 use cookie_factory::{SerializeFn, gen_simple};
-use nom::AsBytes;
-use nom::IResult;
-use std::convert::identity;
-use std::io::Write;
-use std::net::SocketAddr;
-use std::ops::Deref;
-use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use nom::{AsBytes, IResult};
+use std::{convert::identity, io::Write, net::SocketAddr, time::Duration};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+};
 
 pub struct MCStream {
     io: TcpStream,
@@ -259,6 +253,7 @@ pub struct FinalizeLoginPacket {
     pub(crate) hardcore: bool,
     pub(crate) dimensions: Vec<Identifier>,
     pub(crate) max_players: i32,
+    pub(crate) render_distance: i32,
     pub(crate) simulation_distance: i32,
     pub(crate) reduced_debug_info: bool,
     pub(crate) respawn_screen_enabled: bool,
@@ -404,11 +399,11 @@ impl ClientboundPacket {
             }
             Self::StatusPong(n) => {
                 let w = generate_varint(1)(w)?;
-                gen_simple(cookie_factory::bytes::be_u64(n.clone()), w)
+                cookie_factory::bytes::be_u64(n.clone())(w)
             }
             Self::ConfigPing(n) => {
                 let w = generate_varint(5)(w)?;
-                gen_simple(cookie_factory::bytes::be_u32(n.clone()), w)
+                cookie_factory::bytes::be_u32(n.clone())(w)
             }
             Self::KnownPacks(packs) => {
                 let w = generate_varint(14)(w)?;
@@ -421,12 +416,7 @@ impl ClientboundPacket {
             Self::FinishConfig => generate_varint(3)(w),
             Self::FinalizeLogin(packet) => {
                 let w = generate_varint(48)(w)?;
-                let w = cookie_factory::bytes::be_i32(packet.entity_id)(w)?;
-                let w = generate_boolean(packet.hardcore)(w)?;
-                let w = generate_array(&*packet.dimensions, |v| {
-                    generate_owned_string(v.to_string())
-                })(w)?;
-                Ok(w)
+                packet.generate()(w)
             }
         }
     }
@@ -591,5 +581,39 @@ impl StatusResponsePacket {
 
     fn generate<W: Write>(&self) -> impl SerializeFn<W> {
         |w| gen_simple(generate_string(&self.response.to_string()[..]), w)
+    }
+}
+
+impl FinalizeLoginPacket {
+    fn generate<W: Write>(&self) -> impl SerializeFn<W> {
+        |w| {
+            let w = cookie_factory::bytes::be_i32(self.entity_id)(w)?;
+            let w = generate_boolean(self.hardcore)(w)?;
+            let w = generate_array(&*self.dimensions, |v| generate_owned_string(v.to_string()))(w)?;
+            let w = generate_varint(self.max_players)(w)?;
+            let w = generate_varint(self.render_distance)(w)?;
+            let w = generate_varint(self.simulation_distance)(w)?;
+            let w = generate_boolean(self.reduced_debug_info)(w)?;
+            let w = generate_boolean(self.respawn_screen_enabled)(w)?;
+            let w = generate_boolean(self.limited_crafting)(w)?;
+            let w = generate_varint(self.dimension_type)(w)?;
+            let w = self.dimension_name.generate()(w)?;
+            let w = cookie_factory::bytes::be_i64(self.hashed_seed)(w)?;
+            let w = cookie_factory::bytes::be_u8(self.game_mode)(w)?;
+            let w = cookie_factory::bytes::be_i8(self.previous_game_mode)(w)?;
+            let w = generate_boolean(self.is_debug_world)(w)?;
+            let w = generate_boolean(self.is_flat_world)(w)?;
+            let mut w = generate_boolean(self.death_location.is_some())(w)?;
+            match &self.death_location {
+                None => {}
+                Some((dimension, pos)) => {
+                    w = dimension.generate()(w)?;
+                    w = pos.generate()(w)?;
+                }
+            };
+            let w = generate_varint(self.portal_cooldown)(w)?;
+            let w = generate_varint(self.sea_level)(w)?;
+            generate_boolean(self.enforces_secure_chat)(w)
+        }
     }
 }
