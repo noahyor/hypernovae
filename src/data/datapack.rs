@@ -1,17 +1,27 @@
 use crate::{
     data::Identifier,
     error::Error,
+    // game::data::Advancement,
     net::data::{generate_string, parse_string},
 };
 use cookie_factory::{SerializeFn, gen_simple};
 use nom::IResult;
 use serde_json::Value;
-use std::{collections::HashMap, fs::FileType, io::Write, path::PathBuf};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs::FileType,
+    io::Write,
+    path::PathBuf,
+};
 
 pub struct Datapack {
     identifier: Identifier,
     version: String,
-    data: HashMap<Identifier, Value>,
+    namespaces: BTreeMap<Identifier, DatapackNamespace>,
+}
+
+pub struct DatapackNamespace {
+    // advancement: BTreeMap<String, indextree::Arena<Advancement>>,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -20,30 +30,30 @@ pub struct DatapackVersion {
     version: String,
 }
 
-// impl Datapack {
-//     pub fn from_dir(
-//         path: PathBuf,
-//         identifier: Identifier,
-//         version: String,
-//     ) -> Result<Self, Error<Vec<u8>>> {
-//         assert!(path.join("pack.mcmeta").exists());
-//         let root_path = path.join("data/");
-//         let mut data = HashMap::new();
-//         for namespace in std::fs::read_dir(root_path)?
-//             .collect::<Result<Vec<std::fs::DirEntry>, std::io::Error>>()?
-//             .iter()
-//         {
-//             if namespace.file_type()?.is_file() {
-//                 continue;
-//             }
-//         }
-//         Ok(Self {
-//             identifier,
-//             version,
-//             data: (),
-//         })
-//     }
-// }
+impl Datapack {
+    pub fn from_dir(
+        path: PathBuf,
+        identifier: Identifier,
+        version: String,
+    ) -> Result<Self, Error<Vec<u8>>> {
+        assert!(path.join("pack.mcmeta").exists());
+        let root_path = path.join("data/");
+        let mut namespaces = BTreeMap::new();
+        for namespace in std::fs::read_dir(root_path)?
+            .collect::<Result<Vec<std::fs::DirEntry>, std::io::Error>>()?
+            .iter()
+        {
+            if namespace.file_type()?.is_file() {
+                continue;
+            }
+        }
+        Ok(Self {
+            identifier,
+            version,
+            namespaces,
+        })
+    }
+}
 
 impl DatapackVersion {
     pub fn new<V: Into<String>>(id: Identifier, ver: V) -> Self {
